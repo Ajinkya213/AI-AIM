@@ -6,8 +6,13 @@ class PdfConverter:
     '''
     Converts PDF file or PDF files from folder to images.
     '''
-    def __init__(self,image_dir=r'D:\Projects\CDAC Project\test_with_ai\data\pdf_images'):
-        self.saved_images_dir=image_dir
+    def __init__(self,image_dir=None):
+        if image_dir is None:
+            # Create pdf_images folder inside uploads directory
+            uploads_dir = os.path.join(os.getcwd(), 'uploads')
+            self.saved_images_dir = os.path.join(uploads_dir, 'pdf_images')
+        else:
+            self.saved_images_dir = image_dir
         os.makedirs(self.saved_images_dir,exist_ok=True)
         os.environ["TOKENIZERS_PARALLELISM"]="false"
         self._doc_counter=1

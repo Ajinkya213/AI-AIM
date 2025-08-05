@@ -19,39 +19,46 @@ from crewai import Crew
 converter = PdfConverter()
 
 async def process_documents(files: List[FileStorage]):
-    """
-    Process and index uploaded PDF documents.
-    
-    This function handles file upload, conversion to text, and indexing
-    into the RAG system for future retrieval.
-    
-    Args:
-        files (List[FileStorage]): List of uploaded PDF files
-        
-    Returns:
-        Dict[str, str]: Status message indicating processing completion
-        
-    Raises:
-        Exception: If file processing or indexing fails
-    """
     all_data = []
-    for file in files:
-        # Create temporary file path for processing
-        temp_dir=tempfile.gettempdir()
-        temp_path=os.path.join(temp_dir,file.filename)
+    for file_item in files:
+        if isinstance(file_item, str):
+            # If file_item is a file path (string), use it directly
+            file_path = file_item
+            # Verify the file exists
+            if not os.path.exists(file_path):
+                print(f"Warning: File not found at path: {file_path}")
+                continue
+        else:
+            # If file_item is a FileStorage object, save it to temp location first
+            temp_dir = tempfile.gettempdir()
+            temp_path = os.path.join(temp_dir, file_item.filename)
+            
+            # Save uploaded file to temporary location
+            file_item.save(temp_path)
+            file_path = temp_path
         
-        # Save uploaded file to temporary location
-        file.save(temp_path)
-        
-        # Convert PDF to structured data
-        data = converter.convert(temp_path)
-        all_data.extend(data)
-        
-        # Clean up temporary file
-        os.unlink(temp_path)
+        try:
+            # Convert PDF to structured data using the file path
+            data = converter.convert(file_path)
+            all_data.extend(data)
+            
+            # Clean up temporary file if it was created
+            if isinstance(file_item, FileStorage) and os.path.exists(temp_path):
+                os.unlink(temp_path)
+                
+        except Exception as e:
+            print(f"Error processing file {file_path}: {e}")
+            # Clean up temporary file if it was created
+            if isinstance(file_item, FileStorage) and os.path.exists(temp_path):
+                os.unlink(temp_path)
+            continue
+    
     # Index all processed documents in RAG system
-    rag.index_document(all_data)
-    return {"status": "Documents processed and indexed."}
+    if all_data:
+        rag.index_document(all_data)
+        return {"status": f"Documents processed and indexed. Processed {len(all_data)} pages."}
+    else:
+        return {"status": "No documents were successfully processed."}
 
 async def process_query(query: str):
     """

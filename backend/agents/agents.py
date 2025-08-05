@@ -19,6 +19,6 @@ agent = Agent(
     backstory="You are a research assistant trained in visual document understanding. "
               "Your job is to retrieve relevant pages from internal documents (including the document name and the page number for the document) and fall back to the internet if needed.",
     tools=[search_web,retrive_from_document],# Tools available for the agent to use
-    verbose=True,# Enable verbose logging for debugging and monitoring
+    verbose=True,# Enable verbose logging for debugging and monitoring #remove this
     llm='gemini/gemini-2.5-flash' # Use Gemini 2.5 Flash as the underlying language model
 )

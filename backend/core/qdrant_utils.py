@@ -73,7 +73,8 @@ class VectorDBClient:
             try:
                 self.client.upsert(
                     collection_name=collection_name,
-                    points=batch_points
+                    points=batch_points,
+                    wait=True
                 )
                 print(f"[INFO] Inserted {len(batch_points)} points.")
             except Exception as e:
