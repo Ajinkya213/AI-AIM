@@ -1,0 +1,53 @@
+# Flask Web Framework
+flask
+werkzeug
+Flask-SQLAlchemy 
+Flask-JWT-Extended
+
+#AI/ML core Libraries
+colpali-engine
+colpali-engine[interpretability]
+torch
+google-generativeai
+
+#Agent Framework
+crewai
+crewai-tools
+
+#Vector Database
+qdrant-client
+
+#PDF and Image Processing
+pdf2image
+pymupdf
+PyPDF2
+poppler-utils
+Pillow
+
+#Web search tool
+tavily-python
+
+#Data processing
+pydantic
+
+#Environment and configurations
+python-dotenv
+python-multipart
+
+#Security and Configuration
+passlib 
+bcrypt 
+cryptography
+pymysql 
+
+#MCP
+uv
+uvicorn[standard]
+
+#Other dependencies
+IPython
+
+
+
+
+
