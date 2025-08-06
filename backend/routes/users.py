@@ -4,8 +4,15 @@ from config.database import db, pwd_context
 
 users_bp = Blueprint('users', __name__)
 
-@users_bp.route("/users", methods=["POST"])
+@users_bp.route("/users", methods=["POST","OPTIONS"])
 def create_user():
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+        response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+        return response
+
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid JSON body"}), 400

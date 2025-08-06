@@ -6,8 +6,15 @@ from config.settings import Config
 
 auth_bp = Blueprint('auth', __name__)
 
-@auth_bp.route("/login", methods=["POST"])
+@auth_bp.route("/login", methods=["POST","OPTIONS"])
 def login():
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+        response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+        return response
+
     username = request.json.get("username", None)
     password = request.json.get("password", None)
 

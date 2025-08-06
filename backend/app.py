@@ -9,6 +9,7 @@ from routes.users import users_bp
 from routes.agent import agent_bp
 from middleware.error_handlers import register_error_handlers
 import os
+from flask_cors import CORS
 
 def create_app():
     """
@@ -21,7 +22,16 @@ def create_app():
     
     # Load configuration
     app.config.from_object(Config)
-    
+
+    # Initialize CORS - Add this section
+    CORS(app, resources={
+        r"/*": {
+            "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+            "supports_credentials": True
+        }
+    })
     # Initialize extensions
     jwt = JWTManager(app)
     init_database(app)
