@@ -24,7 +24,7 @@ export default function Userboard() {
     const sessionId = urlParams.get('session');
 
     if (sessionId && sessions.length > 0) {
-      const session = sessions.find(s => s.id === sessionId);
+      const session = sessions.find(s => s.id.toString() === sessionId);
       if (session) {
         setCurrentSession(sessionId);
       }
@@ -45,7 +45,7 @@ export default function Userboard() {
   const handleNewQuery = async () => {
     try {
       const newSession = await addSession();
-      navigate(`/userboard?session=${newSession.id}`);
+      navigate(`/userboard?session=${newSession.id.toString()}`);
     } catch (error) {
       console.error('Failed to create new session:', error);
     }

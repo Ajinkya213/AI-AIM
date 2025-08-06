@@ -50,10 +50,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         checkAuthStatus();
     }, []);
 
-    // Handle automatic logout when application is closed
+    // Handle automatic logout when application is closed (but NOT when switching tabs)
     useEffect(() => {
         const handleBeforeUnload = () => {
-            // Clear authentication data when user closes the application
+            // Only clear authentication when user actually closes the application
+            // This will only trigger when the user closes the browser tab/window
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
             setUser(null);
@@ -64,35 +65,65 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             window.dispatchEvent(new CustomEvent('userLogout'));
         };
 
-        const handleVisibilityChange = () => {
-            // Also logout when user switches tabs or minimizes browser
-            if (document.visibilityState === 'hidden') {
-                handleBeforeUnload();
-            }
-        };
-
-        // Add event listeners
+        // Add event listener only for beforeunload (when closing the app)
         window.addEventListener('beforeunload', handleBeforeUnload);
-        document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        // Cleanup event listeners
+        // Cleanup event listener
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, []);
 
     const checkAuthStatus = async () => {
         try {
-            // Always clear authentication on app start to redirect to landing page
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            setIsAuthenticated(false);
-            setUser(null);
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                // No token found, user is not authenticated
+                setIsAuthenticated(false);
+                setUser(null);
+            } else {
+                // Token exists, verify it by making a request to a protected endpoint
+                try {
+                    const response = await fetch(`${API_BASE}/protected`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
 
-            // Dispatch logout event to clear other contexts
-            window.dispatchEvent(new CustomEvent('userLogout'));
-
+                    if (response.ok) {
+                        // Token is valid, set user as authenticated
+                        // We'll create a basic user object since the protected endpoint doesn't return full user data
+                        const user: User = {
+                            id: 'temp-id', // We'll get this from the token if needed
+                            username: 'user', // We'll get this from the token if needed
+                            email: '',
+                            password: '',
+                            is_active: true,
+                            is_superuser: false,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        };
+                        setUser(user);
+                        setIsAuthenticated(true);
+                    } else {
+                        // Token is invalid, clear it
+                        localStorage.removeItem('access_token');
+                        localStorage.removeItem('refresh_token');
+                        setIsAuthenticated(false);
+                        setUser(null);
+                    }
+                } catch (error) {
+                    console.error('Token verification failed:', error);
+                    // If verification fails, clear tokens and set as not authenticated
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    setIsAuthenticated(false);
+                    setUser(null);
+                }
+            }
         } catch (error) {
             console.error('Auth check failed:', error);
             setIsAuthenticated(false);

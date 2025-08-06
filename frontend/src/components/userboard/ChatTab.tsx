@@ -43,9 +43,9 @@ export function ChatTab({ currentChatMessages, onSendMessage, isSending = false 
   // Convert ChatMessageType to the format expected by ChatMessage component
   const formatMessageForDisplay = (msg: ChatMessageType) => ({
     id: msg.id,
-    text: msg.text,  // Changed from msg.content to msg.text
-    sender: msg.sender as "user" | "ai",  // Changed from is_user_message to sender
-    timestamp: new Date(msg.timestamp).toLocaleTimeString([], {  // Changed from created_at to timestamp
+    content: msg.content,
+    is_user_message: msg.is_user_message,
+    timestamp: new Date(msg.timestamp).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit'
     })

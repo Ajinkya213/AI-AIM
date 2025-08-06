@@ -30,81 +30,109 @@ export function MainContent({ }: MainContentProps) {
   const [activeTab, setActiveTab] = React.useState<"chat" | "files">("chat");
 
   // Enhanced AI response simulation with different response types
-  const generateAIResponse = (userMessage: string): string => {
-    const responses = [
-      `I understand you said: "${userMessage}". This is a helpful AI response that demonstrates the chat functionality.`,
-      `Thanks for your message: "${userMessage}". I'm here to help with any questions you might have.`,
-      `Interesting point about "${userMessage}". Let me provide some insights on this topic.`,
-      `I've processed your message: "${userMessage}". Here's what I think about this.`,
-      `Great question! Regarding "${userMessage}", here's my analysis.`
-    ];
+  // const generateAIResponse = (userMessage: string): string => {
+  //   const responses = [
+  //     `I understand you said: "${userMessage}". This is a helpful AI response that demonstrates the chat functionality.`,
+  //     `Thanks for your message: "${userMessage}". I'm here to help with any questions you might have.`,
+  //     `Interesting point about "${userMessage}". Let me provide some insights on this topic.`,
+  //     `I've processed your message: "${userMessage}". Here's what I think about this.`,
+  //     `Great question! Regarding "${userMessage}", here's my analysis.`
+  //   ];
+
+    const handleSendMessage = async (messageText: string) => {
+      if (!activeSession) {
+        console.error('No active session');
+        // Try to create a new session if none exists
+        try {
+          const newSession = await addSession();
+          if (newSession) {
+            // Add user message to new session - the backend will automatically generate AI response
+            await addMessage(newSession.id.toString(), messageText, true);
+          }
+        } catch (error) {
+          console.error('Failed to create session or send message:', error);
+        }
+        return;
+      }
+  
+      setIsSendingMessage(true);
+      try {
+        // Add user message - the backend will automatically generate AI response
+        await addMessage(activeSession.id.toString(), messageText, true);
+      } catch (error) {
+        console.error('Failed to send message:', error);
+        // Could show a toast notification here
+      } finally {
+        setIsSendingMessage(false);
+      }
+    };
 
     // Add some variety based on message content
-    if (userMessage.toLowerCase().includes('hello') || userMessage.toLowerCase().includes('hi')) {
-      return "Hello! How can I assist you today?";
-    }
-    if (userMessage.toLowerCase().includes('help')) {
-      return "I'm here to help! What specific assistance do you need?";
-    }
-    if (userMessage.toLowerCase().includes('thank')) {
-      return "You're welcome! Is there anything else I can help you with?";
-    }
+  //   if (userMessage.toLowerCase().includes('hello') || userMessage.toLowerCase().includes('hi')) {
+  //     return "Hello! How can I assist you today?";
+  //   }
+  //   if (userMessage.toLowerCase().includes('help')) {
+  //     return "I'm here to help! What specific assistance do you need?";
+  //   }
+  //   if (userMessage.toLowerCase().includes('thank')) {
+  //     return "You're welcome! Is there anything else I can help you with?";
+  //   }
 
-    return responses[Math.floor(Math.random() * responses.length)];
-  };
+  //   return responses[Math.floor(Math.random() * responses.length)];
+  // };
 
   // Enhanced message sending with better error handling
-  const handleSendMessage = async (messageText: string) => {
-    if (!activeSession) {
-      console.error('No active session');
-      // Try to create a new session if none exists
-      try {
-        const newSession = await addSession();
-        if (newSession) {
-          // Add user message to new session
-          await addMessage(newSession.id, messageText, true);
+  // const handleSendMessage = async (messageText: string) => {
+  //   if (!activeSession) {
+  //     console.error('No active session');
+  //     // Try to create a new session if none exists
+  //     try {
+  //       const newSession = await addSession();
+  //       if (newSession) {
+  //         // Add user message to new session
+  //         await addMessage(newSession.id.toString(), messageText, true);
 
-          // Simulate AI response after a short delay
-          setTimeout(async () => {
-            try {
-              const aiResponse = generateAIResponse(messageText);
-              await addMessage(newSession.id, aiResponse, false);
-            } catch (error) {
-              console.error('Failed to add AI response:', error);
-              // Show user-friendly error
-              await addMessage(newSession.id, "Sorry, I encountered an error processing your message. Please try again.", false);
-            }
-          }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds for realism
-        }
-      } catch (error) {
-        console.error('Failed to create session or send message:', error);
-      }
-      return;
-    }
+  //         // Simulate AI response after a short delay
+  //         setTimeout(async () => {
+  //           try {
+  //             const aiResponse = generateAIResponse(messageText);
+  //             await addMessage(newSession.id.toString(), aiResponse, false);
+  //           } catch (error) {
+  //             console.error('Failed to add AI response:', error);
+  //             // Show user-friendly error
+  //             await addMessage(newSession.id.toString(), "Sorry, I encountered an error processing your message. Please try again.", false);
+  //           }
+  //         }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds for realism
+  //       }
+  //     } catch (error) {
+  //       console.error('Failed to create session or send message:', error);
+  //     }
+  //     return;
+  //   }
 
-    setIsSendingMessage(true);
-    try {
-      // Add user message
-      await addMessage(activeSession.id, messageText, true);
+  //   setIsSendingMessage(true);
+  //   try {
+  //     // Add user message
+  //     await addMessage(activeSession.id.toString(), messageText, true);
 
-      // Simulate AI response after a short delay
-      setTimeout(async () => {
-        try {
-          const aiResponse = generateAIResponse(messageText);
-          await addMessage(activeSession.id, aiResponse, false);
-        } catch (error) {
-          console.error('Failed to add AI response:', error);
-          // Show user-friendly error
-          await addMessage(activeSession.id, "Sorry, I encountered an error processing your message. Please try again.", false);
-        }
-      }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds for realism
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      // Could show a toast notification here
-    } finally {
-      setIsSendingMessage(false);
-    }
-  };
+  //     // Simulate AI response after a short delay
+  //     setTimeout(async () => {
+  //       try {
+  //         const aiResponse = generateAIResponse(messageText);
+  //         await addMessage(activeSession.id.toString(), aiResponse, false);
+  //       } catch (error) {
+  //         console.error('Failed to add AI response:', error);
+  //         // Show user-friendly error
+  //         await addMessage(activeSession.id.toString(), "Sorry, I encountered an error processing your message. Please try again.", false);
+  //       }
+  //     }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds for realism
+  //   } catch (error) {
+  //     console.error('Failed to send message:', error);
+  //     // Could show a toast notification here
+  //   } finally {
+  //     setIsSendingMessage(false);
+  //   }
+  // };
 
   // Enhanced file upload simulation
   const handleFileUpload = (file: File) => {

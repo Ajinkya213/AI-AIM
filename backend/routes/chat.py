@@ -3,6 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.user import User
 from models.chat import ChatSession, ChatMessage
 from config.database import db
+from services.query_service import process_query
+import asyncio
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -84,26 +86,51 @@ def send_chat_message(session_id):
     if not content:
         return jsonify({"error": "Message content is required"}), 400
 
-    new_message = ChatMessage(
-        content=content,
-        is_user_message=is_user_message,
-        session_id=session.id
-    )
-
     try:
-        db.session.add(new_message)
+        # Save user message
+        user_message = ChatMessage(
+            content=content,
+            is_user_message=True,
+            session_id=session.id
+        )
+        db.session.add(user_message)
         db.session.commit()
+
+        # Get agent response
+        agent_response = asyncio.run(process_query(content))
+        agent_content = agent_response.get("response", "Sorry, I couldn't process your request.")
+
+        # Save agent response
+        agent_message = ChatMessage(
+            content=agent_content,
+            is_user_message=False,
+            session_id=session.id
+        )
+        db.session.add(agent_message)
+        db.session.commit()
+
         return jsonify({
-            "id": new_message.id,
-            "session_id": new_message.session_id,
-            "content": new_message.content,
-            "is_user_message": new_message.is_user_message,
-            "created_at": new_message.created_at.isoformat()
+            "user_message": {
+                "id": user_message.id,
+                "session_id": user_message.session_id,
+                "content": user_message.content,
+                "is_user_message": user_message.is_user_message,
+                "created_at": user_message.created_at.isoformat()
+            },
+            "agent_message": {
+                "id": agent_message.id,
+                "session_id": agent_message.session_id,
+                "content": agent_message.content,
+                "is_user_message": agent_message.is_user_message,
+                "created_at": agent_message.created_at.isoformat()
+            }
         }), 201
+
     except Exception as e:
         db.session.rollback()
         print(f"Error sending chat message: {e}")
         return jsonify({"error": "Could not send message", "details": str(e)}), 500
+
 
 @chat_bp.route("/chat_sessions/<int:session_id>/messages", methods=["GET"])
 @jwt_required()
@@ -156,3 +183,42 @@ def delete_chat_session(session_id):
         db.session.rollback()
         print(f"Error deleting chat session: {e}")
         return jsonify({"error": "Error deleting chat session", "details": str(e)}), 500
+
+@chat_bp.route("/chat_sessions/<int:session_id>", methods=["PUT"])
+@jwt_required()
+def update_chat_session(session_id):
+    current_user_id = get_jwt_identity()
+    user = db.session.get(User, current_user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    session = db.session.get(ChatSession, session_id)
+    if not session:
+        return jsonify({"error": "Chat session not found"}), 404
+
+    if session.owner_id != user.id:
+        return jsonify({"error": "You do not have permission to update this chat session"}), 403
+
+    data = request.get_json()
+    print(f"Received data: {data}")
+    title = data.get("title")
+    print(f"OLD Received title: {title}")
+    if not title:
+        return jsonify({"error": "Title is required for a chat session"}), 400
+
+    try:
+        session.title = title
+        print(f"Updated chat session title to: {title}")
+        db.session.commit()
+        return jsonify({
+            "id": session.id,
+            "title": session.title,
+            "owner_id": session.owner_id,
+            "created_at": session.created_at.isoformat(),
+            "updated_at": session.updated_at.isoformat()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating chat session: {e}")
+        return jsonify({"error": "Error updating chat session", "details": str(e)}), 500
+

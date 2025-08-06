@@ -1,7 +1,7 @@
 // components/userboard/Sidebar.tsx
 import * as React from "react";
 import { useLocation } from "react-router-dom";
-import { ChevronRightIcon, PlusIcon, GearIcon, ExitIcon, TrashIcon } from "@radix-ui/react-icons";
+import { ChevronRightIcon, PlusIcon, GearIcon, ExitIcon, TrashIcon, CheckIcon, Cross2Icon } from "@radix-ui/react-icons";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -15,6 +15,8 @@ import {
 import { ScrollArea } from "../ui/scroll-area";
 import { useChat, type ChatSession } from "../../contexts/ChatContext";
 import { ThemeToggle } from "../ThemeToggle";
+import { date } from "zod";
+import { Input } from "../ui/input";
 
 interface User {
   id: string;
@@ -38,8 +40,11 @@ interface SidebarProps {
 
 export function Sidebar({ sessions, currentSession, onNewQuery, onSessionSelect, onLogout, user }: SidebarProps) {
   const [isOpen, setIsOpen] = React.useState(true);
+  const [editingSessionId, setEditingSessionId] = React.useState<string | null>(null);
+  const [editTitle, setEditTitle] = React.useState("");
   const { deleteSession, updateSession } = useChat();
   const location = useLocation();
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Determine current session ID from URL
   const currentSessionId = new URLSearchParams(location.search).get("query");
@@ -57,15 +62,42 @@ export function Sidebar({ sessions, currentSession, onNewQuery, onSessionSelect,
     }
   };
 
-  const handleRenameSession = async (session: ChatSession) => {
-    const newTitle = prompt("Enter new title:", session.title);
-    if (newTitle && newTitle.trim()) {
-      try {
-        await updateSession(session.id, { title: newTitle.trim() });
-      } catch (error) {
-        console.error('Failed to rename session:', error);
-        alert('Failed to rename session. Please try again.');
-      }
+  const handleRenameSession = (session: ChatSession) => {
+    setEditingSessionId(session.id.toString());
+    setEditTitle(session.title);
+    // Focus the input after a brief delay to ensure it's rendered
+    setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 0);
+  };
+
+  const handleSaveRename = async () => {
+    if (!editingSessionId || !editTitle.trim()) {
+      setEditingSessionId(null);
+      return;
+    }
+
+    try {
+      await updateSession(editingSessionId, { title: editTitle.trim() });
+      setEditingSessionId(null);
+      setEditTitle("");
+    } catch (error) {
+      console.error('Failed to rename session:', error);
+      alert('Failed to rename session. Please try again.');
+    }
+  };
+
+  const handleCancelRename = () => {
+    setEditingSessionId(null);
+    setEditTitle("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveRename();
+    } else if (e.key === 'Escape') {
+      handleCancelRename();
     }
   };
 
@@ -125,12 +157,47 @@ export function Sidebar({ sessions, currentSession, onNewQuery, onSessionSelect,
                     "group relative flex items-center space-x-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors",
                     currentSession?.id === session.id && "bg-accent text-accent-foreground"
                   )}
-                  onClick={() => onSessionSelect(session.id)}
+                  onClick={() => onSessionSelect(session.id.toString())}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="truncate">{session.title}</span>
-                      {isOpen && (
+                      {editingSessionId === session.id.toString() ? (
+                        <div className="flex items-center gap-1 flex-1">
+                          <Input
+                            ref={inputRef}
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            className="h-6 text-sm px-2 py-1"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveRename();
+                            }}
+                          >
+                            <CheckIcon className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelRename();
+                            }}
+                          >
+                            <Cross2Icon className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="truncate">{session.title}</span>
+                      )}
+                      {isOpen && editingSessionId !== session.id.toString() && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -147,7 +214,7 @@ export function Sidebar({ sessions, currentSession, onNewQuery, onSessionSelect,
                               Rename
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={(e) => handleDeleteSession(session.id, e)}
+                              onClick={(e) => handleDeleteSession(session.id.toString(), e)}
                               className="text-red-600"
                             >
                               <TrashIcon className="h-3 w-3 mr-2" />
@@ -159,7 +226,7 @@ export function Sidebar({ sessions, currentSession, onNewQuery, onSessionSelect,
                     </div>
                     {isOpen && (
                       <div className="text-xs text-muted-foreground">
-                        {formatDate(session.updated_at)}
+                        {formatDate(session.updated_at || Date.now().toString())}
                       </div>
                     )}
                   </div>

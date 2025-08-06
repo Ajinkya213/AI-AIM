@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils";
 interface ChatMessageProps {
   message: {
     id: string;
-    text: string;
-    sender: "user" | "ai";
+    content: string;
+    is_user_message:boolean;
     timestamp: string; // e.g., "10:30 AM"
   };
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
-  const isUser = message.sender === "user";
+  const isUser = message.is_user_message;
 
   return (
     <div className={cn("flex items-end gap-2", isUser ? "justify-end" : "justify-start")}>
@@ -29,7 +29,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           isUser ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
         )}
       >
-        <p>{message.text}</p>
+        <p>{message.content}</p>
         <span className={cn("block text-xs mt-1", isUser ? "text-primary-foreground/80" : "text-muted-foreground/70")}>
           {message.timestamp}
         </span>

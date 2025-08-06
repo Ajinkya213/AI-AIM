@@ -2,20 +2,22 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from 'react';
 
 export interface ChatMessage {
-    id: string ;
-    text: string;
-    sender: string; // 'user' or 'ai'
+    id: string;
+    content: string;
+    is_user_message: boolean; 
     timestamp: string;
     session_id: string;
 }
 
 export interface ChatSession {
-    id: string;
+    id: string | number; 
     title: string;
     created_at: string;
-    updated_at: string;
-    user_id: string;
+    updated_at?: string; 
+    owner_id?: string | number;  
+    user_id?: string | number;
     messages: ChatMessage[];
+    messagesLoaded?: boolean;
 }
 
 interface ChatContextType {
@@ -59,6 +61,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [currentSession, setCurrentSessionState] = useState<ChatSession | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     const getAuthToken = () => localStorage.getItem('access_token');
     const API_BASE = 'http://localhost:8000';
@@ -91,13 +94,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Listen for logout events
         window.addEventListener('userLogout', handleLogout);
 
-        // Also check periodically for token changes
-        const interval = setInterval(handleStorageChange, 1000);
-
         return () => {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('userLogout', handleLogout);
-            clearInterval(interval);
         };
     }, []);
 
@@ -106,41 +105,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const token = getAuthToken();
         if (token) {
             loadSessions();
+            setIsInitialLoad(false);
         }
-    }, []);
-
-    // Also reload sessions when authentication status changes (e.g., after login)
-    useEffect(() => {
-        let lastToken = getAuthToken();
-
-        const handleAuthChange = () => {
-            const currentToken = getAuthToken();
-
-            // Only reload if token changed from null to present (login) or present to null (logout)
-            if (lastToken !== currentToken) {
-                console.log('DEBUG: Auth token changed, last:', !!lastToken, 'current:', !!currentToken);
-
-                if (currentToken && !lastToken) {
-                    // User just logged in
-                    console.log('DEBUG: User logged in, loading sessions');
-                    loadSessions();
-                } else if (!currentToken && lastToken) {
-                    // User just logged out
-                    console.log('DEBUG: User logged out, clearing sessions');
-                    setSessions([]);
-                    setCurrentSessionState(null);
-                    setError(null);
-                }
-
-                lastToken = currentToken;
-            }
-        };
-
-        // Check for auth changes less frequently to avoid unnecessary reloads
-        const interval = setInterval(handleAuthChange, 5000);
-
-        return () => clearInterval(interval);
-    }, []);
+    }, [isInitialLoad]);
 
     // Listen for login events to reload sessions
     useEffect(() => {
@@ -160,16 +127,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         };
     }, []);
 
-    // Auto-refresh current session messages every 30 seconds (disabled to prevent message clearing)
-    // useEffect(() => {
-    //     if (!currentSession) return;
-
-    //     const interval = setInterval(() => {
-    //         refreshCurrentSession();
-    //     }, 30000);
-
-    //     return () => clearInterval(interval);
-    // }, [currentSession?.id]);
 
     const loadSessions = async () => {
         setIsLoading(true);
@@ -187,7 +144,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             console.log('DEBUG: Making API call to load sessions');
-            const response = await fetch(`${API_BASE}/chat/sessions`, {
+            const response = await fetch(`${API_BASE}/chat_sessions`, {
+                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -208,13 +166,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             const data = await response.json();
-            const sessionsData = data.sessions || [];
+            const sessionsData = Array.isArray(data) ? data : (data.sessions || []);
             console.log('DEBUG: Received sessions data:', sessionsData);
 
             // Convert to ChatSession format with empty messages array initially
             const sessionsWithEmptyMessages = sessionsData.map((session: any) => ({
-                ...session,
-                messages: []
+                id: session.id,
+                title: session.title,
+                created_at: session.created_at,
+                updated_at: session.updated_at || session.created_at, // Use created_at as fallback
+                owner_id: session.owner_id,
+                user_id: session.owner_id, 
+                messages: [],
+                messagesLoaded: false
             }));
 
             console.log('DEBUG: Setting sessions with empty messages initially');
@@ -222,13 +186,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             if (sessionsWithEmptyMessages.length > 0) {
                 setCurrentSessionState(sessionsWithEmptyMessages[0]);
-
-                // Load messages for all sessions
-                console.log('DEBUG: Loading messages for all sessions');
-                for (const session of sessionsWithEmptyMessages) {
-                    console.log('DEBUG: Loading messages for session ID:', session.id, 'type:', typeof session.id);
-                    await loadMessages(session.id.toString());
-                }
+                // Only load messages for the first session, not all sessions
+                await loadMessages(sessionsWithEmptyMessages[0].id.toString());
             }
         } catch (err) {
             console.error('DEBUG: Error loading sessions:', err);
@@ -244,15 +203,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (!token) {
                 throw new Error('No authentication token');
             }
-
+    
             console.log('DEBUG: Loading messages for session:', sessionId);
-            const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages`, {
+            const response = await fetch(`${API_BASE}/chat_sessions/${sessionId}/messages`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
-
+    
             if (!response.ok) {
                 if (response.status === 401) {
                     localStorage.removeItem('access_token');
@@ -260,30 +219,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
                 throw new Error(`Failed to load messages: ${response.status}`);
             }
-
+    
             const data = await response.json();
-            const messages = data.messages || [];
+            const messages = Array.isArray(data) ? data : (data.messages || []);
             console.log('DEBUG: Loaded messages for session', sessionId, ':', messages.length, 'messages');
-
-            // Update sessions with messages
+    
+            // Convert backend message format to frontend format
+            const formattedMessages = messages.map((msg: any) => ({
+                id: msg.id.toString(),
+                content: msg.content,
+                is_user_message: msg.is_user_message,
+                timestamp: msg.created_at,
+                session_id: msg.session_id.toString()
+            }));
+    
+            // Update sessions with messages - FIXED: Use functional update to avoid stale closures
             console.log('DEBUG: Updating sessions with messages for sessionId:', sessionId);
             setSessions(prev => {
                 const updated = prev.map(session => {
                     if (session.id.toString() === sessionId.toString()) {
-                        console.log('DEBUG: Found matching session, updating with', messages.length, 'messages');
-                        return { ...session, messages };
+                        return { ...session, messages: formattedMessages, messagesLoaded: true }; // <-- Set flag
                     }
                     return session;
                 });
-                console.log('DEBUG: Updated sessions:', updated.map(s => ({ id: s.id, messageCount: s.messages.length })));
                 return updated;
             });
-
-            // Update current session if it's the one we're loading
-            if (currentSession?.id.toString() === sessionId.toString()) {
-                console.log('DEBUG: Updating current session with messages');
-                setCurrentSessionState(prev => prev ? { ...prev, messages } : null);
-            }
+    
+            // Update current session if it's the one we're loading - FIXED: Use functional update
+            setCurrentSessionState(prev => {
+                if (prev?.id.toString() === sessionId.toString()) {
+                    console.log('DEBUG: Updating current session with messages');
+                    return { ...prev, messages: formattedMessages };
+                }
+                return prev;
+            });
         } catch (err) {
             console.error('DEBUG: Error loading messages:', err);
             setError(err instanceof Error ? err.message : 'Failed to load messages');
@@ -291,22 +260,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
     };
 
-    const refreshCurrentSession = useCallback(async () => {
-        if (currentSession) {
-            try {
-                await loadMessages(currentSession.id);
-            } catch (error) {
-                console.error('Failed to refresh current session:', error);
-            }
-        }
-    }, [currentSession]);
-
     const setCurrentSession = (sessionId: string) => {
         const session = sessions.find(s => s.id.toString() === sessionId.toString());
         if (session) {
             setCurrentSessionState(session);
-            // Load messages if not already loaded
-            if (session.messages.length === 0) {
+            // Only load messages if not already loaded
+            if (!session.messagesLoaded) {
                 loadMessages(sessionId).catch(console.error);
             }
         }
@@ -320,7 +279,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             const sessionTitle = title || 'New Chat';
-            const response = await fetch(`${API_BASE}/chat/sessions`, {
+            const response = await fetch(`${API_BASE}/chat_sessions`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -334,13 +293,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             const data = await response.json();
-            const newSession = data.session;
-            const sessionWithMessages = { ...newSession, messages: [] };
+            const newSession = {
+                id: data.id,
+                title: data.title,
+                created_at: data.created_at,
+                updated_at: data.updated_at || data.created_at, 
+                owner_id: data.owner_id,
+                user_id: data.owner_id, 
+                messages: [],
+                messagesLoaded: true
+            };
 
-            setSessions(prev => [sessionWithMessages, ...prev]);
-            setCurrentSessionState(sessionWithMessages);
+            setSessions(prev => [newSession, ...prev]);
+            setCurrentSessionState(newSession);
 
-            return sessionWithMessages;
+            return newSession;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create session');
             throw err;
@@ -353,29 +320,43 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (!token) {
                 throw new Error('No authentication token');
             }
-
-            const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}`, {
+    
+            // Only send title in the request body as that's what backend expects
+            const requestBody = {
+                title: updates.title
+            };
+    
+            const response = await fetch(`${API_BASE}/chat_sessions/${sessionId}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(updates)
+                body: JSON.stringify(requestBody)
             });
-
+    
             if (!response.ok) {
                 throw new Error(`Failed to update session: ${response.status}`);
             }
-
+    
+            // Update local state with the changes
             setSessions(prev => prev.map(session => {
                 if (session.id.toString() === sessionId.toString()) {
-                    return { ...session, ...updates };
+                    return { 
+                        ...session, 
+                        ...updates,
+                        updated_at: new Date().toISOString() // Update timestamp locally
+                    };
                 }
                 return session;
             }));
-
+    
             if (currentSession?.id.toString() === sessionId.toString()) {
-                setCurrentSessionState(prev => prev ? { ...prev, ...updates } : null);
+                setCurrentSessionState(prev => prev ? { 
+                    ...prev, 
+                    ...updates,
+                    updated_at: new Date().toISOString() // Update timestamp locally
+                } : null);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update session');
@@ -390,7 +371,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 throw new Error('No authentication token');
             }
 
-            const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}`, {
+            const response = await fetch(`${API_BASE}/chat_sessions/${sessionId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -420,53 +401,141 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     };
 
     const addMessage = async (sessionId: string, content: string, isUserMessage: boolean): Promise<void> => {
+        // 1. Create a temporary user message
+        const tempUserId = `temp-user-${Date.now()}`;
+        const tempUserMessage: ChatMessage = {
+            id: tempUserId,
+            content,
+            is_user_message: isUserMessage,
+            timestamp: new Date().toISOString(),
+            session_id: sessionId,
+        };
+    
+        // 2. Create a temporary "Thinking..." agent message
+        const tempAgentId = `temp-agent-${Date.now()}`;
+        const tempAgentMessage: ChatMessage = {
+            id: tempAgentId,
+            content: "Thinking...",
+            is_user_message: false,
+            timestamp: new Date().toISOString(),
+            session_id: sessionId,
+        };
+    
+        // 3. Optimistically add both messages to the UI
+        setSessions(prev =>
+            prev.map(session =>
+                session.id.toString() === sessionId.toString()
+                    ? { ...session, messages: [...session.messages, tempUserMessage, tempAgentMessage] }
+                    : session
+            )
+        );
+        if (currentSession?.id.toString() === sessionId.toString()) {
+            setCurrentSessionState(prev =>
+                prev ? { ...prev, messages: [...prev.messages, tempUserMessage, tempAgentMessage] } : null
+            );
+        }
+    
         try {
             const token = getAuthToken();
-            if (!token) {
-                throw new Error('No authentication token');
-            }
-
-            const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages`, {
+            if (!token) throw new Error('No authentication token');
+    
+            const response = await fetch(`${API_BASE}/chat_sessions/${sessionId}/messages`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    text: content,
-                    sender: isUserMessage ? 'user' : 'ai'
+                    content: content,
+                    is_user_message: isUserMessage ? true : false
                 })
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to add message: ${response.status}`);
-            }
-
+    
+            if (!response.ok) throw new Error(`Failed to add message: ${response.status}`);
+    
             const data = await response.json();
-            const newMessage = data.message_data;
-
-            // Update sessions with new message
-            setSessions(prev => prev.map(session => {
-                if (session.id.toString() === sessionId.toString()) {
-                    return {
-                        ...session,
-                        messages: [...session.messages, newMessage],
-                        updated_at: new Date().toISOString()
-                    };
-                }
-                return session;
-            }));
-
-            // Update current session if it's the one we're adding to
+    
+            // 4. Prepare the real user and agent messages from backend
+            const messagesToAdd: ChatMessage[] = [];
+            if (data.user_message) {
+                messagesToAdd.push({
+                    id: data.user_message.id.toString(),
+                    content: data.user_message.content,
+                    is_user_message: data.user_message.is_user_message,
+                    timestamp: data.user_message.created_at,
+                    session_id: data.user_message.session_id.toString()
+                });
+            }
+            if (data.agent_message) {
+                messagesToAdd.push({
+                    id: data.agent_message.id.toString(),
+                    content: data.agent_message.content,
+                    is_user_message: data.agent_message.is_user_message,
+                    timestamp: data.agent_message.created_at,
+                    session_id: data.agent_message.session_id.toString()
+                });
+            }
+    
+            // 5. Replace the temp user and agent messages with the real ones
+            setSessions(prev =>
+                prev.map(session =>
+                    session.id.toString() === sessionId.toString()
+                        ? {
+                            ...session,
+                            messages: [
+                                ...session.messages.filter(
+                                    msg => msg.id !== tempUserId && msg.id !== tempAgentId
+                                ),
+                                ...messagesToAdd
+                            ],
+                            updated_at: new Date().toISOString()
+                        }
+                        : session
+                )
+            );
             if (currentSession?.id.toString() === sessionId.toString()) {
-                setCurrentSessionState(prev => prev ? {
-                    ...prev,
-                    messages: [...prev.messages, newMessage],
-                    updated_at: new Date().toISOString()
-                } : null);
+                setCurrentSessionState(prev =>
+                    prev
+                        ? {
+                            ...prev,
+                            messages: [
+                                ...prev.messages.filter(
+                                    msg => msg.id !== tempUserId && msg.id !== tempAgentId
+                                ),
+                                ...messagesToAdd
+                            ],
+                            updated_at: new Date().toISOString()
+                        }
+                        : null
+                );
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to add message');
+            // Optionally: remove the temp messages if the request failed
+            setSessions(prev =>
+                prev.map(session =>
+                    session.id.toString() === sessionId.toString()
+                        ? {
+                            ...session,
+                            messages: session.messages.filter(
+                                msg => msg.id !== tempUserId && msg.id !== tempAgentId
+                            )
+                        }
+                        : session
+                )
+            );
+            if (currentSession?.id.toString() === sessionId.toString()) {
+                setCurrentSessionState(prev =>
+                    prev
+                        ? {
+                            ...prev,
+                            messages: prev.messages.filter(
+                                msg => msg.id !== tempUserId && msg.id !== tempAgentId
+                            )
+                        }
+                        : null
+                );
+            }
             throw err;
         }
     };
@@ -478,7 +547,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 throw new Error('No authentication token');
             }
 
-            const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages/${messageId}`, {
+            const response = await fetch(`${API_BASE}/chat_sessions/${sessionId}/messages/${messageId}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -524,7 +593,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 throw new Error('No authentication token');
             }
 
-            const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages/${messageId}`, {
+            const response = await fetch(`${API_BASE}/chat_sessions/${sessionId}/messages/${messageId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -565,7 +634,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 throw new Error('No authentication token');
             }
 
-            const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages`, {
+            const response = await fetch(`${API_BASE}/chat_sessions/${sessionId}/messages`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -614,7 +683,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Add all messages from imported session
             for (const message of session.messages) {
-                await addMessage(newSession.id, message.text, message.sender === 'user');
+                await addMessage(newSession.id.toString(), message.text, message.sender === 'user');
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to import session');
@@ -637,11 +706,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
     };
 
+    const refreshCurrentSession = async () => {
+        if (currentSession && currentSession.id) {
+            await loadMessages(currentSession.id.toString());
+        }
+    };
+
     const value: ChatContextType = {
         sessions,
         currentSession,
         isLoading,
         error,
+        refreshCurrentSession,
         addSession,
         updateSession,
         deleteSession,
@@ -654,7 +730,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         importSession,
         loadSessions,
         loadMessages,
-        refreshCurrentSession,
         clearAllSessions,
         reloadSessions
     };
@@ -664,4 +739,4 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             {children}
         </ChatContext.Provider>
     );
-}; 
+};
