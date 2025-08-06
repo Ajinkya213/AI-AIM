@@ -52,7 +52,7 @@ def build_task(query: str):
 
     return Task(
         description=f"Retrieve info about: {query}",
-        expected_output="A JSON response answering the query.",
+        expected_output="A response answering the query.",
         agent=agent,# Assign the multimodal retrieval agent
         steps=[task_logic]# Define the execution steps
     )
