@@ -39,3 +39,24 @@ class VectorDBClient:
                 ),
             ),
         )
+    
+    def create_points(self,colpali_client: ColpaliClient,dataset:List[Dict],batch_size:int=5)->List:
+        points=[]
+        for i in range(0,len(dataset),batch_size):
+            batch=dataset[i:i+batch_size]
+            images=[item['image'] for item in batch]
+            
+            image_embeddings=colpali_client.get_image_embeddings(images)
+            for j,embedding in enumerate(image_embeddings):
+                points.append(
+                    models.PointStruct(
+                        id=i+j,
+                        vector=embedding, #add tolist if need
+                        payload={
+                            "doc_id": batch[j]["doc_id"],
+                            "page_num": batch[j]["page_number"],
+                            "source": batch[j]['filename']
+                        },
+                    )
+                )
+            return points
