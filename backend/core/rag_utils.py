@@ -24,6 +24,9 @@ class MultiModalRAG:
             print(f"[INFO] Collection already exists")
             
     def index_document(self,dataset:List[Dict]):
+        '''
+        Create embeddings of image and insert to the vectorDB
+        '''
         try:
             print("[INFO] Preparing point structures for Qdrant...")
             points=self.qdrant.create_points(self.colpali,dataset)

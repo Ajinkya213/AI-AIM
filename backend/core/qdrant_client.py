@@ -66,6 +66,9 @@ class VectorDBClient:
         return points
     
     def insert_data(self,points:List,dataset:List[Dict],batch_size:int=5,collection_name:str='test')->None:
+        '''
+        Upsert points data to the collection 
+        '''
         for i in range(0,len(points),batch_size):
             batch_points=points[i:i+batch_size]
             try:
@@ -74,6 +77,8 @@ class VectorDBClient:
                     points=batch_points,
                     wait=True
                 )
+                print(f"[INFO] Inserted {len(batch_points)} points.")
             except Exception as e:
                 print(f"[ERROR] An Error occured during insertion: {e}")
                 continue
+        print(f"[INFO] Data inserted successfully")
