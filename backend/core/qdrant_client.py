@@ -41,6 +41,9 @@ class VectorDBClient:
         )
     
     def create_points(self,colpali_client: ColpaliClient,dataset:List[Dict],batch_size:int=5)->List:
+        '''
+        Creates points containing all the metadata for image and its vectors to insert to qdrant DB
+        '''
         points=[]
         for i in range(0,len(dataset),batch_size):
             batch=dataset[i:i+batch_size]
@@ -59,4 +62,18 @@ class VectorDBClient:
                         },
                     )
                 )
-            return points
+            print(f"[INFO] Created {len(points)} points.")
+        return points
+    
+    def insert_data(self,points:List,dataset:List[Dict],batch_size:int=5,collection_name:str='test')->None:
+        for i in range(0,len(points),batch_size):
+            batch_points=points[i:i+batch_size]
+            try:
+                self.client.upsert(
+                    collection_name=collection_name,
+                    points=batch_points,
+                    wait=True
+                )
+            except Exception as e:
+                print(f"[ERROR] An Error occured during insertion: {e}")
+                continue
