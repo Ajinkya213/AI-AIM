@@ -35,3 +35,15 @@ class MultiModalRAG:
             self.qdrant.insert_data(points,dataset)
         except Exception as e:
             print(f"Cannot add to vector DB:{e}")
+            
+    def query(self,query_text:str)->List[Dict]:
+        query_embeddings=self.colpali.get_query_embeddings(query_text)
+        
+        print("[INFO] Performing vector search in Qdrant...")
+        response=self.qdrant.search(user_query=query_embeddings)
+        
+        # Extract points from QueryResponse object
+        results = response.points if hasattr(response, 'points') else []
+        print(f"[INFO] Found {len(results)} matching results")
+        
+        return results

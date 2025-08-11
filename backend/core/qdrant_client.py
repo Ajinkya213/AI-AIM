@@ -82,3 +82,21 @@ class VectorDBClient:
                 print(f"[ERROR] An Error occured during insertion: {e}")
                 continue
         print(f"[INFO] Data inserted successfully")
+        
+    def search(self,user_query:List,collection_name:str='test')->List:
+        '''
+        Search and retrive the points which match the user query 
+        '''
+        result=self.client.query_points(
+            collection_name=collection_name,
+            query=user_query,
+            limit=5,
+            search_params=models.SearchParams(
+                quantization=models.QuantizationSearchParams(
+                    ignore=True,
+                    rescore=True,
+                    oversampling=2.0
+                )
+            )
+        )
+        return result
