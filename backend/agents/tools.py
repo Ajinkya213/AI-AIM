@@ -1,5 +1,6 @@
 import os
 from tavily import TavilyClient
+from core.rag_singleton import rag
 
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or "your-tavily-api-key"
 
@@ -10,3 +11,16 @@ def search_web(query: str) -> str:
         return "\n".join([r["content"] for r in results["results"]])
     except Exception as e:
         return f"Search failed: {e}"
+
+def retrive_from_document(query:str)->str:
+    try:
+        result=rag.generate_result(query)
+        if result['status']=="success":
+            return result
+        elif result['status']=="no_results":
+            return result['message']
+        else:
+            return f"Error: {result['message']}"
+    except Exception as e:
+        return f"Retrival failed: {e}"
+    
