@@ -1,18 +1,19 @@
-import os
 from typing import List,Dict,Tuple
 from PIL import Image
 from .colpali_client import ColpaliClient
 from .qdrant_client import VectorDBClient
 import google.generativeai as genai
+import os
 
 
 class MultiModalRAG:
-    def __init__(self,url:str,api_key:str,image_dir:str=r"\data\pdf_images"):
+    def __init__(self,url:str,api_key:str,image_dir:str=r"D:\Projects\CDAC Project\test_with_ai\data\pdf_images"):
         self.colpali=ColpaliClient()
         self.qdrant=VectorDBClient(url,api_key)
         self.collection='test'
         self.image_dir=image_dir
         self._init_collection()
+        
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
         genai.configure(api_key=GEMINI_API_KEY)
         self.model=genai.GenerativeModel('gemini-2.5-flash')
@@ -41,17 +42,18 @@ class MultiModalRAG:
             print("[INFO] Inserting data into Qdrant...")
             self.qdrant.insert_data(points,dataset)
         except Exception as e:
-            print(f"Cannot add to vector DB:{e}")
-            
+            print(f"Cannot add to vector DB:{e}")     
     def query(self,query_text:str)->List[Dict]:
         '''
         Creates query embeddings and search relevent images based on user query
         '''
+        print(f"[INFO] Generating embedding for query: '{query_text}'")
         query_embeddings=self.colpali.get_query_embeddings(query_text)
         
         print("[INFO] Performing vector search in Qdrant...")
         response=self.qdrant.search(user_query=query_embeddings)
         
+        # Extract points from QueryResponse object
         results = response.points if hasattr(response, 'points') else []
         print(f"[INFO] Found {len(results)} matching results")
         
