@@ -14,3 +14,5 @@ class Config:
     
     # JWT blocklist (in-memory for now)
     blocklist = set()
+
+# TODO: Add Quadrant Keys!!

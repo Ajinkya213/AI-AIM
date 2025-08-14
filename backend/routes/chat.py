@@ -154,4 +154,6 @@ def update_chat_session(session_id):
         db.session.rollback()
         print(f"Error updating chat session: {e}")
         return jsonify({"error": "Error updating chat session", "details": str(e)}), 500
+    
+# TODO: Add SendChat commit!
 
