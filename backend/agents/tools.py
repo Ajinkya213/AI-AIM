@@ -10,7 +10,7 @@ from core.rag_singleton import rag
 from crewai.tools import tool
 
 #TRAVILY API KEY
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or "your-tavily-api-key"
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 @tool("Web Search Tool")
 def search_web(query: str) -> str:

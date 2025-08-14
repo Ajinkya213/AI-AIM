@@ -7,7 +7,7 @@ import os
 
 
 class MultiModalRAG:
-    def __init__(self,url:str,api_key:str,image_dir:str=r"D:\Projects\CDAC Project\test_with_ai\data\pdf_images"):
+    def __init__(self,url:str,api_key:str,image_dir:str=r"..\uploads\pdf_images"):
         self.colpali=ColpaliClient()
         self.qdrant=VectorDBClient(url,api_key)
         self.collection='test'
@@ -42,7 +42,8 @@ class MultiModalRAG:
             print("[INFO] Inserting data into Qdrant...")
             self.qdrant.insert_data(points,dataset)
         except Exception as e:
-            print(f"Cannot add to vector DB:{e}")     
+            print(f"Cannot add to vector DB:{e}")   
+          
     def query(self,query_text:str)->List[Dict]:
         '''
         Creates query embeddings and search relevent images based on user query
