@@ -34,3 +34,56 @@ def get_drive_service():
             token_file.write(creds.to_json())
 
     return build("drive", "v3", credentials=creds)
+
+@mcp.tool()
+def list_pdfs_in_folder(folder_id: str) -> List[Dict]:
+    """
+    List all PDF files in a Google Drive folder.
+    Args:
+        folder_id: The Google Drive folder ID
+    Returns:
+        List of dicts with file name and ID
+    """
+    service = get_drive_service()
+    query = f"'{folder_id}' in parents and mimeType='application/pdf' and trashed=false"
+    results = service.files().list(
+        q=query,
+        fields="files(id, name, mimeType)"
+    ).execute()
+
+    files = results.get("files", [])
+    return [{"id": f["id"], "name": f["name"]} for f in files]
+
+@mcp.resource("gdrive-pdf://{file_id}")
+def get_pdf(file_id: str):
+    """Return the actual PDF file from Google Drive."""
+    import base64
+    
+    try:
+        service = get_drive_service()
+        request = service.files().get_media(fileId=file_id)
+        pdf_bytes = request.execute()
+
+        # Encode binary data as base64 for JSON transport
+        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+
+        return {
+            "contents": [
+                {
+                    "uri": f"gdrive-pdf://{file_id}",
+                    "mimeType": "application/pdf",
+                    "blob": pdf_base64
+                }
+            ]
+        }
+    except Exception as e:
+        # Return error information for debugging
+        return {
+            "contents": [
+                {
+                    "uri": f"gdrive-pdf://{file_id}",
+                    "mimeType": "text/plain",
+                    "text": f"Error fetching PDF: {str(e)}"
+                }
+            ]
+        }
