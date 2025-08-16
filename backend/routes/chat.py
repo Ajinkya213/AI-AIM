@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models.user import User
-from models.chat import ChatSession, ChatMessage
+from model.user import User
+from model.chat import ChatSession, ChatMessage
 from config.database import db
 from services.query_service import process_query
 import asyncio
@@ -155,5 +155,71 @@ def update_chat_session(session_id):
         print(f"Error updating chat session: {e}")
         return jsonify({"error": "Error updating chat session", "details": str(e)}), 500
     
-# TODO: Add SendChat commit!
+@chat_bp.route("/chat_sessions/<int:session_id>/messages", methods=["POST"])
+@jwt_required()
+def send_chat_message(session_id):
+    current_user_id = get_jwt_identity()
+    user = db.session.get(User, current_user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    session = db.session.get(ChatSession, session_id)
+    if not session:
+        return jsonify({"error": "Chat session not found"}), 404
+
+    if session.owner_id != user.id:
+        return jsonify({"error": "You do not have permission to add messages to this session"}), 403
+
+    data = request.get_json()
+    content = data.get("content")
+    is_user_message = data.get("is_user_message", True)
+
+    if not content:
+        return jsonify({"error": "Message content is required"}), 400
+
+    try:
+        # Save user message
+        user_message = ChatMessage(
+            content=content,
+            is_user_message=True,
+            session_id=session.id
+        )
+        db.session.add(user_message)
+        db.session.commit()
+
+        # Get agent response
+        agent_response = asyncio.run(process_query(content))
+        agent_content = agent_response.get("response", "Sorry, I couldn't process your request.")
+
+        # Save agent response
+        agent_message = ChatMessage(
+            content=agent_content,
+            is_user_message=False,
+            session_id=session.id
+        )
+        db.session.add(agent_message)
+        db.session.commit()
+
+        return jsonify({
+            "user_message": {
+                "id": user_message.id,
+                "session_id": user_message.session_id,
+                "content": user_message.content,
+                "is_user_message": user_message.is_user_message,
+                "created_at": user_message.created_at.isoformat()
+            },
+            "agent_message": {
+                "id": agent_message.id,
+                "session_id": agent_message.session_id,
+                "content": agent_message.content,
+                "is_user_message": agent_message.is_user_message,
+                "created_at": agent_message.created_at.isoformat()
+            }
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error sending chat message: {e}")
+        return jsonify({"error": "Could not send message", "details": str(e)}), 500
+
 
