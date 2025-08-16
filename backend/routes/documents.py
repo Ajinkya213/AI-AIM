@@ -2,8 +2,8 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 import os
-from models.document import Document
-from models.user import User
+from model.document import Document
+from model.user import User
 from config.database import db
 from config.settings import Config
 from utils.file_utils import allowed_file

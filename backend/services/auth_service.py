@@ -1,4 +1,4 @@
-from models.user import User
+from model.user import User
 from config.database import db, pwd_context
 from flask_jwt_extended import create_access_token
 
