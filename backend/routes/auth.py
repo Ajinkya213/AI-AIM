@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
-from models.user import User
+from model.user import User
 from config.database import db, pwd_context
 from config.settings import Config
 
